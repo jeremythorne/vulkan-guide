@@ -115,3 +115,20 @@ VkPipelineLayoutCreateInfo vkinit::pipeline_layout_create_info() {
         .pPushConstantRanges = nullptr
     };
 }
+
+VkFenceCreateInfo vkinit::fence_create_info(VkFenceCreateFlags flags) {
+    return {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = flags
+    };
+}
+
+VkSemaphoreCreateInfo vkinit::semaphore_create_info(
+    VkSemaphoreCreateFlags flags) {
+    return {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = flags
+    };
+}

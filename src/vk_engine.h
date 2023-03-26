@@ -4,7 +4,23 @@
 #pragma once
 
 #include <vk_types.h>
+#include <functional>
 #include <vector>
+
+struct DeletionQueue {
+    std::vector<std::function<void()>> deletors;
+
+    void push(std::function<void()>&& function) {
+        deletors.push_back(function);
+    }
+
+    void flush() {
+        for(auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+            (*it)();
+        }
+        deletors.clear();
+    }
+};
 
 class VulkanEngine {
 public:
@@ -54,6 +70,8 @@ private:
     VkPipeline _trianglePipeline;
     VkPipeline _redTrianglePipeline;
 
+    DeletionQueue _mainDeletionQueue;
+    
     int _selectedShader = 0;
 
     void init_vulkan();
@@ -65,6 +83,11 @@ private:
     bool load_shader_module(const char* filePath,
         VkShaderModule * outShaderModule);
     void init_pipelines();
+
+    void defer_delete(std::function<void()>&& function) {
+        _mainDeletionQueue.push(
+            std::forward<std::function<void()>>(function));
+    }
 };
 
 class PipelineBuilder {

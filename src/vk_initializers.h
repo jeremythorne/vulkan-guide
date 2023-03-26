@@ -15,7 +15,9 @@ namespace vkinit {
         VkCommandPool pool,
         uint32_t count = 1,
         VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-    
+
+    VkFenceCreateInfo fence_create_info(VkFenceCreateFlags flags);
+    VkSemaphoreCreateInfo semaphore_create_info(VkSemaphoreCreateFlags flags);
 
     VkPipelineShaderStageCreateInfo pipeline_shader_stage_create_info(
         VkShaderStageFlagBits stage, VkShaderModule shaderModule);
