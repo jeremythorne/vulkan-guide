@@ -50,6 +50,124 @@ void VulkanEngine::init()
 	_isInitialized = true;
 }
 
+void VulkanEngine::cleanup()
+{	
+	if (_isInitialized) {
+        
+        vkDestroyCommandPool(_device, _commandPool, nullptr);
+		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+        vkDestroyRenderPass(_device, _renderPass, nullptr);
+        for(auto i = 0; i < _swapchainImages.size(); i++) {
+            vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
+            vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
+        }
+        vkDestroyDevice(_device, nullptr);
+        vkDestroySurfaceKHR(_instance, _surface, nullptr);
+        vkb::destroy_debug_utils_messenger(_instance, _debug_messenger);
+        vkDestroyInstance(_instance, nullptr);
+		SDL_DestroyWindow(_window);
+	}
+}
+
+void VulkanEngine::draw()
+{
+    // wait on CPU for rendering to finish
+    VK_CHECK(vkWaitForFences(_device, 1, &_renderFence, true, 1000000000));
+    VK_CHECK(vkResetFences(_device, 1, &_renderFence));
+
+    // acquire next image to render into, and semaphore to pass to rendering
+    // to know when that image is safe to use
+    uint32_t swapchainImageIndex;
+    VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 1000000000,
+        _presentSemaphore, nullptr, &swapchainImageIndex));
+    
+    VK_CHECK(vkResetCommandBuffer(_mainCommandBuffer, 0));
+    auto cmd = _mainCommandBuffer;
+
+    VkCommandBufferBeginInfo cmdBeginInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
+
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+    VkClearValue clearValue;
+    float flash = abs(sin(_frameNumber / 120.f));
+    clearValue.color = { { 0.0f, 0.0f, flash, 1.0f } };
+
+    VkRenderPassBeginInfo rpInfo{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .pNext = nullptr,
+        .renderPass = _renderPass,
+        .framebuffer = _framebuffers[swapchainImageIndex],
+        .renderArea = {
+            .offset = {.x  = 0, .y = 0},
+            .extent = _windowExtent
+        },
+        .clearValueCount = 1,
+        .pClearValues = &clearValue
+    };
+        
+    vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+
+    vkCmdEndRenderPass(cmd);
+    VK_CHECK(vkEndCommandBuffer(cmd));
+
+    VkPipelineStageFlags waitStage =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+    VkSubmitInfo submit{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &_presentSemaphore,
+        .pWaitDstStageMask = &waitStage,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmd,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &_renderSemaphore,
+   };
+
+    VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, _renderFence));
+
+    VkPresentInfoKHR presentInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &_renderSemaphore,
+        .swapchainCount = 1,
+        .pSwapchains = &_swapchain,
+        .pImageIndices = &swapchainImageIndex,
+    };
+
+    VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
+
+    _frameNumber++;
+}
+
+void VulkanEngine::run()
+{
+	SDL_Event e;
+	bool bQuit = false;
+
+	//main loop
+	while (!bQuit)
+	{
+		//Handle events on queue
+		while (SDL_PollEvent(&e) != 0)
+		{
+			//close the window when user alt-f4s or clicks the X button			
+			if (e.type == SDL_QUIT) bQuit = true;
+		}
+
+		draw();
+	}
+}
 void VulkanEngine::init_vulkan() {
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name("Example Vulkan App")
@@ -222,13 +340,13 @@ bool VulkanEngine::load_shader_module(const char* filePath,
 
 void VulkanEngine::init_pipelines() {
     VkShaderModule triangleFragShader;
-    if (!load_shader_module("../shaders/triangle.frag.spv",
+    if (!load_shader_module("shaders/triangle.frag.spv",
         &triangleFragShader)) {
         std::cout << "error building triangle frag shader" << std::endl;
     }
 
     VkShaderModule triangleVertexShader;
-    if (!load_shader_module("../shaders/triangle.vert.spv",
+    if (!load_shader_module("shaders/triangle.vert.spv",
         &triangleVertexShader)) {
         std::cout << "error building triangle vert shader" << std::endl;
     }
@@ -271,124 +389,7 @@ void VulkanEngine::init_pipelines() {
     _trianglePipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
 }
 
-void VulkanEngine::cleanup()
-{	
-	if (_isInitialized) {
-        
-        vkDestroyCommandPool(_device, _commandPool, nullptr);
-		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
-        vkDestroyRenderPass(_device, _renderPass, nullptr);
-        for(auto i = 0; i < _swapchainImages.size(); i++) {
-            vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
-            vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
-        }
-        vkDestroyDevice(_device, nullptr);
-        vkDestroySurfaceKHR(_instance, _surface, nullptr);
-        vkb::destroy_debug_utils_messenger(_instance, _debug_messenger);
-        vkDestroyInstance(_instance, nullptr);
-		SDL_DestroyWindow(_window);
-	}
-}
 
-void VulkanEngine::draw()
-{
-    // wait on CPU for rendering to finish
-    VK_CHECK(vkWaitForFences(_device, 1, &_renderFence, true, 1000000000));
-    VK_CHECK(vkResetFences(_device, 1, &_renderFence));
-
-    // acquire next image to render into, and semaphore to pass to rendering
-    // to know when that image is safe to use
-    uint32_t swapchainImageIndex;
-    VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 1000000000,
-        _presentSemaphore, nullptr, &swapchainImageIndex));
-    
-    VK_CHECK(vkResetCommandBuffer(_mainCommandBuffer, 0));
-    auto cmd = _mainCommandBuffer;
-
-    VkCommandBufferBeginInfo cmdBeginInfo{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext = nullptr,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = nullptr,
-    };
-
-    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
-
-    VkClearValue clearValue;
-    float flash = abs(sin(_frameNumber / 120.f));
-    clearValue.color = { { 0.0f, 0.0f, flash, 1.0f } };
-
-    VkRenderPassBeginInfo rpInfo{
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext = nullptr,
-        .renderPass = _renderPass,
-        .framebuffer = _framebuffers[swapchainImageIndex],
-        .renderArea = {
-            .offset = {.x  = 0, .y = 0},
-            .extent = _windowExtent
-        },
-        .clearValueCount = 1,
-        .pClearValues = &clearValue
-    };
-        
-    vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
-    vkCmdDraw(cmd, 3, 1, 0, 0);
-
-    vkCmdEndRenderPass(cmd);
-    VK_CHECK(vkEndCommandBuffer(cmd));
-
-    VkPipelineStageFlags waitStage =
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-    VkSubmitInfo submit{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext = nullptr,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &_presentSemaphore,
-        .pWaitDstStageMask = &waitStage,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmd,
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &_renderSemaphore,
-   };
-
-    VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, _renderFence));
-
-    VkPresentInfoKHR presentInfo{
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .pNext = nullptr,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &_renderSemaphore,
-        .swapchainCount = 1,
-        .pSwapchains = &_swapchain,
-        .pImageIndices = &swapchainImageIndex,
-    };
-
-    VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
-
-    _frameNumber++;
-}
-
-void VulkanEngine::run()
-{
-	SDL_Event e;
-	bool bQuit = false;
-
-	//main loop
-	while (!bQuit)
-	{
-		//Handle events on queue
-		while (SDL_PollEvent(&e) != 0)
-		{
-			//close the window when user alt-f4s or clicks the X button			
-			if (e.type == SDL_QUIT) bQuit = true;
-		}
-
-		draw();
-	}
-}
 
 VkPipeline
 PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass) {
