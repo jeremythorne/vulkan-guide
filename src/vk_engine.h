@@ -8,7 +8,19 @@
 
 class VulkanEngine {
 public:
+	//initializes everything in the engine
+	void init();
 
+	//shuts down the engine
+	void cleanup();
+
+	//draw loop
+	void draw();
+
+	//run main loop
+	void run();
+
+private:
 	bool _isInitialized{ false };
 	int _frameNumber {0};
 
@@ -40,19 +52,10 @@ public:
 
     VkPipelineLayout _trianglePipelineLayout;
     VkPipeline _trianglePipeline;
+    VkPipeline _redTrianglePipeline;
 
-	//initializes everything in the engine
-	void init();
+    int _selectedShader = 0;
 
-	//shuts down the engine
-	void cleanup();
-
-	//draw loop
-	void draw();
-
-	//run main loop
-	void run();
-private:
     void init_vulkan();
     void init_swapchain();
     void init_commands();

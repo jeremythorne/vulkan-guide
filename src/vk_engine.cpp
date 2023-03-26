@@ -112,7 +112,9 @@ void VulkanEngine::draw()
         
     vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        _selectedShader ? _trianglePipeline : _redTrianglePipeline);
+
     vkCmdDraw(cmd, 3, 1, 0, 0);
 
     vkCmdEndRenderPass(cmd);
@@ -162,7 +164,13 @@ void VulkanEngine::run()
 		while (SDL_PollEvent(&e) != 0)
 		{
 			//close the window when user alt-f4s or clicks the X button			
-			if (e.type == SDL_QUIT) bQuit = true;
+			if (e.type == SDL_QUIT) {
+                bQuit = true;
+            } else if (e.type == SDL_KEYDOWN) {
+                if (e.key.keysym.sym == SDLK_SPACE) {
+                    _selectedShader = (_selectedShader + 1) % 2;
+                }
+            }
 		}
 
 		draw();
@@ -340,16 +348,28 @@ bool VulkanEngine::load_shader_module(const char* filePath,
 
 void VulkanEngine::init_pipelines() {
     VkShaderModule triangleFragShader;
-    if (!load_shader_module("shaders/triangle.frag.spv",
+    if (!load_shader_module("shaders/colored_triangle.frag.spv",
         &triangleFragShader)) {
         std::cout << "error building triangle frag shader" << std::endl;
     }
-
     VkShaderModule triangleVertexShader;
-    if (!load_shader_module("shaders/triangle.vert.spv",
+    if (!load_shader_module("shaders/colored_triangle.vert.spv",
         &triangleVertexShader)) {
         std::cout << "error building triangle vert shader" << std::endl;
     }
+    
+    VkShaderModule redTriangleFragShader;
+    if (!load_shader_module("shaders/triangle.frag.spv",
+        &redTriangleFragShader)) {
+        std::cout << "error building red triangle frag shader" << std::endl;
+    }
+
+    VkShaderModule redTriangleVertexShader;
+    if (!load_shader_module("shaders/triangle.vert.spv",
+        &redTriangleVertexShader)) {
+        std::cout << "error building red triangle vert shader" << std::endl;
+    }
+
 
     VkPipelineLayoutCreateInfo pipeline_layout_info =
         vkinit::pipeline_layout_create_info();
@@ -387,8 +407,19 @@ void VulkanEngine::init_pipelines() {
     };
     
     _trianglePipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
-}
 
+     pipelineBuilder
+        ._shaderStages = {
+            vkinit::pipeline_shader_stage_create_info(
+                VK_SHADER_STAGE_VERTEX_BIT, redTriangleVertexShader),
+            vkinit::pipeline_shader_stage_create_info(
+                VK_SHADER_STAGE_FRAGMENT_BIT, redTriangleFragShader)
+        };
+
+    _redTrianglePipeline = 
+        pipelineBuilder.build_pipeline(_device, _renderPass);
+
+}
 
 
 VkPipeline
