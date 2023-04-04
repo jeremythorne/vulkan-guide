@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include <vk_types.h>
+#include "vk_types.h"
+#include "vk_mesh.h"
 #include <functional>
 #include <vector>
 
@@ -39,6 +40,9 @@ public:
 private:
 	bool _isInitialized{ false };
 	int _frameNumber {0};
+    int _selectedShader = 0;
+    
+    DeletionQueue _mainDeletionQueue;
 
 	VkExtent2D _windowExtent{ 850 , 450 };
 
@@ -69,10 +73,10 @@ private:
     VkPipelineLayout _trianglePipelineLayout;
     VkPipeline _trianglePipeline;
     VkPipeline _redTrianglePipeline;
+    VkPipeline _meshPipeline;
+    Mesh _triangleMesh;
 
-    DeletionQueue _mainDeletionQueue;
-    
-    int _selectedShader = 0;
+    VmaAllocator _allocator;
 
     void init_vulkan();
     void init_swapchain();
@@ -83,6 +87,8 @@ private:
     bool load_shader_module(const char* filePath,
         VkShaderModule * outShaderModule);
     void init_pipelines();
+    void load_meshes();
+    void upload_mesh(Mesh& mesh);
 
     void defer_delete(std::function<void()>&& function) {
         _mainDeletionQueue.push(
@@ -104,3 +110,5 @@ public:
     
     VkPipeline build_pipeline(VkDevice device, VkRenderPass pass);
 };
+
+
