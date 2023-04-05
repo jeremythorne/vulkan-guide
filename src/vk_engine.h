@@ -82,6 +82,7 @@ private:
     VkPipeline _redTrianglePipeline;
     VkPipeline _meshPipeline;
     Mesh _triangleMesh;
+    Mesh _monkeyMesh;
 
     VmaAllocator _allocator;
 
