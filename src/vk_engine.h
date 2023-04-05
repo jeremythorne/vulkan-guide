@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <glm/glm.hpp>
 #include "vk_types.h"
 #include "vk_mesh.h"
 #include <functional>
@@ -21,6 +22,11 @@ struct DeletionQueue {
         }
         deletors.clear();
     }
+};
+
+struct MeshPushConstants {
+    glm::vec4 data;
+    glm::mat4 render_matrix;
 };
 
 class VulkanEngine {
@@ -71,6 +77,7 @@ private:
     VkFence _renderFence;
 
     VkPipelineLayout _trianglePipelineLayout;
+    VkPipelineLayout _meshPipelineLayout;
     VkPipeline _trianglePipeline;
     VkPipeline _redTrianglePipeline;
     VkPipeline _meshPipeline;

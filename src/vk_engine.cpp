@@ -6,6 +6,7 @@
 #include <VkBootstrap.h>
 #define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
+#include <glm/gtx/transform.hpp>
 
 #include "vk_types.h"
 #include "vk_initializers.h"
@@ -117,6 +118,21 @@ void VulkanEngine::draw()
     VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(cmd, 0, 1, &_triangleMesh._vertexBuffer._buffer,
         &offset);
+
+
+    glm::vec3 camPos = { 0.f, 0.f, -2.f};
+    glm::mat4 view = glm::translate(glm::mat4(1.f), camPos);
+    glm::mat4 projection = glm::perspective(glm::radians(70.f),
+        17.f / 9.f, 0.1f, 200.f);
+    projection[1][1] *= -1;
+    glm::mat4 model = glm::rotate(glm::mat4(1.f),
+        glm::radians(_frameNumber * 0.4f), glm::vec3(0.f, 1.f, 0.f));
+
+    glm::mat4 mesh_matrix = projection * view * model;
+    MeshPushConstants constants;
+    constants.render_matrix = mesh_matrix;
+    vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
+        0, sizeof(MeshPushConstants), &constants);
 
     vkCmdDraw(cmd, _triangleMesh._vertices.size(), 1, 0, 0);
 
@@ -476,8 +492,22 @@ void VulkanEngine::init_pipelines() {
                 VK_SHADER_STAGE_FRAGMENT_BIT, triangleFragShader)
         };
 
-    _meshPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
 
+    VkPipelineLayoutCreateInfo mesh_pipeline_layout_info =
+        vkinit::pipeline_layout_create_info();
+
+    VkPushConstantRange push_constant{
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        .offset = 0,
+        .size = sizeof(MeshPushConstants),
+    };
+    mesh_pipeline_layout_info.pushConstantRangeCount = 1;
+    mesh_pipeline_layout_info.pPushConstantRanges = &push_constant;
+    VK_CHECK(vkCreatePipelineLayout(_device, &mesh_pipeline_layout_info,
+        nullptr, &_meshPipelineLayout));
+    
+    pipelineBuilder._pipelineLayout = _meshPipelineLayout;
+    _meshPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
 
     vkDestroyShaderModule(_device, meshVertShader, nullptr);
     vkDestroyShaderModule(_device, redTriangleVertShader, nullptr);
@@ -491,6 +521,7 @@ void VulkanEngine::init_pipelines() {
         vkDestroyPipeline(_device, _meshPipeline, nullptr);
 
         vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
+        vkDestroyPipelineLayout(_device, _meshPipelineLayout, nullptr);
     });
 
  }
