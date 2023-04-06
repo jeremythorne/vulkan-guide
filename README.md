@@ -2,4 +2,4 @@
 
 an implementation of the https://vkguide.dev/ tutorial
 
-![screenshot](screenhot.png)
+![screenshot](screenshot.png)
