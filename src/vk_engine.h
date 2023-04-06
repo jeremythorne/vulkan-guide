@@ -84,6 +84,10 @@ private:
     Mesh _triangleMesh;
     Mesh _monkeyMesh;
 
+    VkImageView _depthImageView;
+    AllocatedImage _depthImage;
+    VkFormat _depthFormat;
+
     VmaAllocator _allocator;
 
     void init_vulkan();
@@ -115,6 +119,7 @@ public:
     VkPipelineColorBlendAttachmentState _colorBlendAttachment;
     VkPipelineMultisampleStateCreateInfo _multisampling;
     VkPipelineLayout _pipelineLayout;
+    VkPipelineDepthStencilStateCreateInfo _depthStencil;
     
     VkPipeline build_pipeline(VkDevice device, VkRenderPass pass);
 };

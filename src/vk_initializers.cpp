@@ -132,3 +132,72 @@ VkSemaphoreCreateInfo vkinit::semaphore_create_info(
         .flags = flags
     };
 }
+
+VkImageCreateInfo vkinit::image_create_info(VkFormat format,
+        VkImageUsageFlags usageFlags, VkExtent3D extent) {
+
+    return {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = format,
+        .extent = extent,
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = usageFlags,
+    };
+}
+
+VkImageViewCreateInfo vkinit::imageview_create_info(VkFormat format,
+        VkImage image, VkImageAspectFlags aspectFlags) {
+
+    return {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = nullptr,
+        .image = image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = format,
+        .subresourceRange = {
+            .aspectMask = aspectFlags,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
+}
+
+VkPipelineDepthStencilStateCreateInfo vkinit::depth_stencil_create_info(
+        bool bDepthTest, bool bDepthWrite, VkCompareOp compareOp) {
+
+    return {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .depthTestEnable = (VkBool32)(bDepthTest ? VK_TRUE : VK_FALSE),
+        .depthWriteEnable = (VkBool32)(bDepthWrite ? VK_TRUE : VK_FALSE),
+        .depthCompareOp = bDepthTest ? compareOp : VK_COMPARE_OP_ALWAYS,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE,
+        .minDepthBounds = 0.f,
+        .maxDepthBounds = 1.f,
+    };
+}
+
+VkRenderPassBeginInfo vkinit::renderpass_begin_info(VkRenderPass renderPass,
+        VkFramebuffer framebuffer, VkExtent2D windowExtent) {
+    return {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .pNext = nullptr,
+        .renderPass = renderPass,
+        .framebuffer = framebuffer,
+        .renderArea = {
+            .offset = {.x  = 0, .y = 0},
+            .extent = windowExtent
+        },
+        .clearValueCount = 0,
+        .pClearValues = nullptr
+    };
+}

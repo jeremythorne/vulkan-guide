@@ -96,18 +96,16 @@ void VulkanEngine::draw()
     float flash = abs(sin(_frameNumber / 120.f));
     clearValue.color = { { 0.0f, 0.0f, flash, 1.0f } };
 
-    VkRenderPassBeginInfo rpInfo{
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .pNext = nullptr,
-        .renderPass = _renderPass,
-        .framebuffer = _framebuffers[swapchainImageIndex],
-        .renderArea = {
-            .offset = {.x  = 0, .y = 0},
-            .extent = _windowExtent
-        },
-        .clearValueCount = 1,
-        .pClearValues = &clearValue
-    };
+    VkClearValue depthClear;
+    depthClear.depthStencil.depth = 1.f;
+
+    VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(
+        _renderPass, _framebuffers[swapchainImageIndex], _windowExtent);
+
+    VkClearValue clearValues[2] = { clearValue, depthClear };
+
+    rpInfo.clearValueCount = 2,
+    rpInfo.pClearValues = &clearValues[0];
         
     vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -252,6 +250,42 @@ void VulkanEngine::init_swapchain() {
     defer_delete([=]() {
         vkDestroySwapchainKHR(_device, _swapchain, nullptr);
     });
+
+    VkExtent3D depthImageExtent{
+        _windowExtent.width,
+        _windowExtent.height,
+        1
+    };
+
+    _depthFormat = VK_FORMAT_D32_SFLOAT;
+
+    VkImageCreateInfo dimg_info = vkinit::image_create_info(
+        _depthFormat,
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        depthImageExtent
+    );
+
+    VmaAllocationCreateInfo dimg_alloc_info{
+        .usage = VMA_MEMORY_USAGE_GPU_ONLY,
+        .requiredFlags = VkMemoryPropertyFlags(
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+    };
+
+    vmaCreateImage(_allocator, &dimg_info, &dimg_alloc_info,
+        &_depthImage._image, &_depthImage._allocation, nullptr);
+
+    VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(
+        _depthFormat, _depthImage._image, VK_IMAGE_ASPECT_DEPTH_BIT
+    );
+
+    VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr,
+        &_depthImageView));
+
+    defer_delete([=]() {
+        vkDestroyImageView(_device, _depthImageView, nullptr);
+        vmaDestroyImage(_allocator, _depthImage._image,
+            _depthImage._allocation);
+    });
 }
 
 void VulkanEngine::init_commands() {
@@ -292,18 +326,63 @@ void VulkanEngine::init_default_renderpass() {
         .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
     };
 
+    VkAttachmentDescription depth_attachment{
+        .format = _depthFormat,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+    };
+
+    VkAttachmentReference depth_attachment_ref{
+        .attachment = 1,
+        .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    };
+
     VkSubpassDescription subpass{
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .colorAttachmentCount = 1,
-        .pColorAttachments = &color_attachment_ref
+        .pColorAttachments = &color_attachment_ref,
+        .pDepthStencilAttachment = &depth_attachment_ref,
     };
+   
+    VkSubpassDependency dependency{
+        .srcSubpass = VK_SUBPASS_EXTERNAL,
+        .dstSubpass = 0,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+    };
+
+    VkSubpassDependency depth_dependency{
+        .srcSubpass = VK_SUBPASS_EXTERNAL,
+        .dstSubpass = 0,
+        .srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    }; 
+
+    VkAttachmentDescription attachments[2] = {
+        color_attachment, depth_attachment };
+
+    VkSubpassDependency dependencies[2] = {
+        dependency, depth_dependency };
 
     VkRenderPassCreateInfo render_pass_info{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = 1,
-        .pAttachments = &color_attachment,
+        .attachmentCount = 2,
+        .pAttachments = &attachments[0],
         .subpassCount = 1,
-        .pSubpasses = &subpass
+        .pSubpasses = &subpass,
+        .dependencyCount = 2,
+        .pDependencies = &dependencies[0],
     };
 
     VK_CHECK(vkCreateRenderPass(_device, &render_pass_info, nullptr,
@@ -329,7 +408,11 @@ void VulkanEngine::init_framebuffers() {
     _framebuffers.resize(swapchain_imagecount);
 
     for(auto i = 0; i < swapchain_imagecount; i++) {
-        fb_info.pAttachments = &_swapchainImageViews[i];
+        VkImageView attachments[2] = {
+            _swapchainImageViews[i], _depthImageView };
+        fb_info.pAttachments = &attachments[0];
+        fb_info.attachmentCount = 2;
+
         VK_CHECK(vkCreateFramebuffer(_device, &fb_info, nullptr, 
             &_framebuffers[i]));
 
@@ -448,7 +531,9 @@ void VulkanEngine::init_pipelines() {
                         VK_POLYGON_MODE_FILL),
         ._colorBlendAttachment = vkinit::color_blend_attachment_state(),
         ._multisampling = vkinit::multisampling_state_create_info(),
-        ._pipelineLayout = _trianglePipelineLayout
+        ._pipelineLayout = _trianglePipelineLayout,
+        ._depthStencil = vkinit::depth_stencil_create_info(true, true,
+            VK_COMPARE_OP_LESS_OR_EQUAL),
     };
     
     _trianglePipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
@@ -557,6 +642,7 @@ PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass) {
         .pViewportState = &viewportState,
         .pRasterizationState = &_rasterizer,
         .pMultisampleState = &_multisampling,
+        .pDepthStencilState = &_depthStencil,
         .pColorBlendState = &colorBlending,
         .layout = _pipelineLayout,
         .renderPass = pass,
