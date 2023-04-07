@@ -44,12 +44,21 @@ struct RenderObject {
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 
+struct GPUCameraData {
+    glm::mat4 view;
+    glm::mat4 proj;
+    glm::mat4 viewproj;
+};
+
 struct FrameData {
     VkSemaphore _presentSemaphore, _renderSemaphore;
     VkFence _renderFence;
 
     VkCommandPool _commandPool;
     VkCommandBuffer _mainCommandBuffer;
+
+    AllocatedBuffer _cameraBuffer;
+    VkDescriptorSet _globalDescriptor;
 };
 
 class VulkanEngine {
@@ -104,6 +113,9 @@ private:
     AllocatedImage _depthImage;
     VkFormat _depthFormat;
 
+    VkDescriptorSetLayout _globalSetLayout;
+    VkDescriptorPool _descriptorPool;
+
     VmaAllocator _allocator;
 
     void init_vulkan();
@@ -118,6 +130,10 @@ private:
     void load_meshes();
     void upload_mesh(Mesh& mesh);
     void init_scene();
+    void init_descriptors();
+
+    AllocatedBuffer create_buffer(size_t allocSize,
+        VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
     Material* create_material(VkPipeline pipeline, VkPipelineLayout layout,
         const std::string& name);
