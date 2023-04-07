@@ -42,6 +42,16 @@ struct RenderObject {
     glm::mat4 transformMatrix;
 };
 
+constexpr unsigned int FRAME_OVERLAP = 2;
+
+struct FrameData {
+    VkSemaphore _presentSemaphore, _renderSemaphore;
+    VkFence _renderFence;
+
+    VkCommandPool _commandPool;
+    VkCommandBuffer _mainCommandBuffer;
+};
+
 class VulkanEngine {
 public:
 	//initializes everything in the engine
@@ -80,14 +90,11 @@ private:
 
     VkQueue _graphicsQueue;
     uint32_t _graphicsQueueFamily;
-    VkCommandPool _commandPool;
-    VkCommandBuffer _mainCommandBuffer;
+
+    FrameData _frames[FRAME_OVERLAP];
 
     VkRenderPass _renderPass;
     std::vector<VkFramebuffer> _framebuffers;
-
-    VkSemaphore _presentSemaphore, _renderSemaphore;
-    VkFence _renderFence;
 
     std::vector<RenderObject> _renderables;
     std::unordered_map<std::string,Material> _materials;
@@ -120,6 +127,8 @@ private:
     Mesh* get_mesh(const std::string& name);
 
     void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
+
+    FrameData& get_current_frame();
 
     void defer_delete(std::function<void()>&& function) {
         _mainDeletionQueue.push(
