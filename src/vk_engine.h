@@ -50,6 +50,14 @@ struct GPUCameraData {
     glm::mat4 viewproj;
 };
 
+struct GPUSceneData {
+    glm::vec4 fogColor;
+    glm::vec4 fogDistances;
+    glm::vec4 ambientColor;
+    glm::vec4 sunlighDirection;
+    glm::vec4 sunlightColor;
+};
+
 struct FrameData {
     VkSemaphore _presentSemaphore, _renderSemaphore;
     VkFence _renderFence;
@@ -116,6 +124,11 @@ private:
     VkDescriptorSetLayout _globalSetLayout;
     VkDescriptorPool _descriptorPool;
 
+    VkPhysicalDeviceProperties _gpuProperties;
+
+    GPUSceneData _sceneParameters;
+    AllocatedBuffer _sceneParameterBuffer;
+
     VmaAllocator _allocator;
 
     void init_vulkan();
@@ -145,6 +158,8 @@ private:
     void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
 
     FrameData& get_current_frame();
+
+    size_t pad_uniform_buffer_size(size_t originalSize);
 
     void defer_delete(std::function<void()>&& function) {
         _mainDeletionQueue.push(

@@ -201,3 +201,28 @@ VkRenderPassBeginInfo vkinit::renderpass_begin_info(VkRenderPass renderPass,
         .pClearValues = nullptr
     };
 }
+
+VkDescriptorSetLayoutBinding vkinit::descriptorset_layout_binding(
+    VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
+    return {
+        .binding = binding,
+        .descriptorType = type,
+        .descriptorCount = 1,
+        .stageFlags = stageFlags,
+    };
+}
+
+VkWriteDescriptorSet vkinit::write_descriptor_buffer(
+        VkDescriptorType type, VkDescriptorSet dstSet, 
+        VkDescriptorBufferInfo *bufferInfo, uint32_t binding) {
+    return {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .pNext = nullptr,
+        .dstSet = dstSet,
+        .dstBinding = binding,
+        .descriptorCount = 1,
+        .descriptorType = type,
+        .pBufferInfo = bufferInfo,
+    };
+}
+

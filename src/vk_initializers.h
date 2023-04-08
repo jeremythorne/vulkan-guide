@@ -42,4 +42,13 @@ namespace vkinit {
 
     VkRenderPassBeginInfo renderpass_begin_info(VkRenderPass renderPass,
         VkFramebuffer framebuffer, VkExtent2D windowExtent);
+
+    VkDescriptorSetLayoutBinding descriptorset_layout_binding(
+        VkDescriptorType type, VkShaderStageFlags stageFlags,
+        uint32_t binding);
+
+    VkWriteDescriptorSet write_descriptor_buffer(
+        VkDescriptorType type, VkDescriptorSet dstSet, 
+        VkDescriptorBufferInfo *bufferInfo, uint32_t binding);
+  
 }
