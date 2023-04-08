@@ -63,6 +63,7 @@ void VulkanEngine::cleanup()
             true, 1000000000);
         }
         _mainDeletionQueue.flush();
+        vmaDestroyAllocator(_allocator);
 
         vkDestroyDevice(_device, nullptr);
         vkDestroySurfaceKHR(_instance, _surface, nullptr);
@@ -521,11 +522,6 @@ void VulkanEngine::init_descriptors() {
         VkWriteDescriptorSet setWrites[] = { cameraWrite, sceneWrite };
 
         vkUpdateDescriptorSets(_device, 2, &setWrites[0], 0, nullptr);
-
-        defer_delete([=]() {
-            vmaDestroyBuffer(_allocator, _frames[i]._cameraBuffer._buffer,
-                 _frames[i]._cameraBuffer._allocation);
-        });
     }
 
 }
@@ -745,6 +741,11 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize,
         &newBuffer._allocation,
         nullptr));
 
+    defer_delete([=]() {
+        vmaDestroyBuffer(_allocator, newBuffer._buffer,
+             newBuffer._allocation);
+    });
+ 
     return newBuffer;
 }
 
@@ -753,11 +754,6 @@ void VulkanEngine::upload_mesh(Mesh& mesh) {
         mesh._vertices.size() * sizeof(Vertex),
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VMA_MEMORY_USAGE_CPU_TO_GPU);
-
-    defer_delete([=]() {
-        vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer,
-            mesh._vertexBuffer._allocation);
-    });
 
     void *data;
     vmaMapMemory(_allocator, mesh._vertexBuffer._allocation, &data);
