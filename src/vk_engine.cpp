@@ -179,9 +179,14 @@ void VulkanEngine::run()
 }
 
 void VulkanEngine::init_vulkan() {
+    bool validation = true;
+#if NDEBUG
+    validation = false;
+#endif
+
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name("Example Vulkan App")
-            .request_validation_layers(true)
+            .request_validation_layers(validation)
             .require_api_version(1, 1, 0)
             .use_default_debug_messenger()
             .build();
@@ -486,6 +491,14 @@ void VulkanEngine::init_descriptors() {
     _sceneParameterBuffer = create_buffer(sceneParamBufferSize,
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
+    _sceneParameters = {
+        .fogColor = {1.f, 1.f, 1.f, 1.f},
+        .fogDistances = {1.f, 10.f, 0.f, 0.f},
+        .ambientColor = {1.f, 1.f, 1.f, 1.f},
+        .sunlighDirection = glm::normalize(glm::vec4(-1.f, -1.f, 1.f, 0.f)),
+        .sunlightColor = {1.f, 1.f, 1.f, 1.f},
+    };
+
     for (int i = 0; i < FRAME_OVERLAP; i++) {
         _frames[i]._cameraBuffer = create_buffer(sizeof(GPUCameraData),
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
@@ -709,10 +722,14 @@ void VulkanEngine::load_meshes() {
     };
 
     glm::vec3 green = { 0.f, 1.f, 0.f };
+    glm::vec3 normal = { 0.f, 0.f, 1.f };
 
     for(int i = 0; i < 3; i++) {
-        triangleMesh._vertices[i].position = positions[i];
-        triangleMesh._vertices[i].color = green;
+        triangleMesh._vertices[i] = {
+            .position = positions[i],
+            .normal = normal,
+            .color = green,
+        };
     }
 
     Mesh monkeyMesh;
@@ -796,8 +813,9 @@ Mesh* VulkanEngine::get_mesh(const std::string& name) {
 
 void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first,
     int count) {
-    glm::vec3 camPos = { 0.f, -6.f, -10.f};
-    glm::mat4 view = glm::translate(glm::mat4(1.f), camPos);
+    float framed = _frameNumber / 120.f;
+    glm::vec3 camPos = {2.f * sin(framed), 1.2f, 2.f * cos(framed) };
+    glm::mat4 view = glm::lookAt(camPos, {0.f, 0.f, 0.f}, {0.f, 1.f, 0.f});
     glm::mat4 projection = glm::perspective(glm::radians(70.f),
         17.f / 9.f, 0.1f, 200.f);
     projection[1][1] *= -1;
@@ -814,8 +832,9 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first,
     memcpy(data, &camData, sizeof(GPUCameraData));
     vmaUnmapMemory(_allocator, get_current_frame()._cameraBuffer._allocation);
 
-    float framed = _frameNumber / 120.f;
-    _sceneParameters.ambientColor = { sin(framed), 0., cos(framed), 1.};
+    _sceneParameters.ambientColor = { 
+            0.2f + 0.2f * sin(framed), 0., 
+            0.2f + 0.2f * cos(framed), 1.};
 
     unsigned char *sceneData;
     vmaMapMemory(_allocator, _sceneParameterBuffer._allocation,

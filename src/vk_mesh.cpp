@@ -72,7 +72,7 @@ bool Mesh::load_from_obj(const char * filename) {
                 Vertex new_vert{
                     .position = {vx, vy, vz},
                     .normal = {nx, ny, nz},
-                    .color = {nx, ny, nz},
+                    .color = {1.f, 1.f, 1.f},
                 };
                 _vertices.push_back(new_vert);
             }
