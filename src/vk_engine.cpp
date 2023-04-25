@@ -779,7 +779,7 @@ void VulkanEngine::upload_mesh(Mesh& mesh) {
     vmaMapMemory(_allocator, mesh._vertexBuffer._allocation, &data);
     memcpy(data, mesh._vertices.data(),
         mesh._vertices.size() * sizeof(Vertex));
-
+    vmaFlushAllocation(_allocator, mesh._vertexBuffer._allocation, 0, VK_WHOLE_SIZE);
     vmaUnmapMemory(_allocator, mesh._vertexBuffer._allocation);
 }
 
@@ -830,6 +830,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first,
     vmaMapMemory(_allocator, get_current_frame()._cameraBuffer._allocation,
         &data);
     memcpy(data, &camData, sizeof(GPUCameraData));
+    vmaFlushAllocation(_allocator, get_current_frame()._cameraBuffer._allocation, 0, VK_WHOLE_SIZE);
     vmaUnmapMemory(_allocator, get_current_frame()._cameraBuffer._allocation);
 
     _sceneParameters.ambientColor = { 
@@ -842,6 +843,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first,
     int frameIndex = _frameNumber % FRAME_OVERLAP;
     sceneData += pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameIndex;
     memcpy(sceneData, &_sceneParameters, sizeof(GPUSceneData));
+    vmaFlushAllocation(_allocator, _sceneParameterBuffer._allocation, 0, VK_WHOLE_SIZE);
     vmaUnmapMemory(_allocator, _sceneParameterBuffer._allocation);
 
 
