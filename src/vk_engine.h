@@ -27,8 +27,7 @@ struct DeletionQueue {
 };
 
 struct MeshPushConstants {
-    glm::vec4 data;
-    glm::mat4 render_matrix;
+    uint32_t index;
 };
 
 struct Material {
@@ -67,6 +66,13 @@ struct FrameData {
 
     AllocatedBuffer _cameraBuffer;
     VkDescriptorSet _globalDescriptor;
+
+    AllocatedBuffer _objectBuffer;
+    VkDescriptorSet _objectDescriptor;
+};
+
+struct GPUObjectData {
+    glm::mat4 modelMatrix;
 };
 
 class VulkanEngine {
@@ -122,6 +128,7 @@ private:
     VkFormat _depthFormat;
 
     VkDescriptorSetLayout _globalSetLayout;
+    VkDescriptorSetLayout _objectSetLayout;
     VkDescriptorPool _descriptorPool;
 
     VkPhysicalDeviceProperties _gpuProperties;
