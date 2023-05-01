@@ -28,18 +28,7 @@ target_sources(tinyobjloader PRIVATE
 target_include_directories(tinyobjloader PUBLIC tinyobjloader)
 
 
-add_library(sdl2 INTERFACE)
-set(sdl2_DIR "/usr" CACHE PATH "path to sdl")
-
-if (WIN32)
-target_include_directories(sdl2 INTERFACE ${sdl2_DIR}/include ${sdl2_image_DIR}/include)
-target_link_directories(sdl2 INTERFACE ${sdl2_DIR}/lib/x64 ${sdl2_image_DIR}/lib/x64)
-elseif (UNIX)
-target_include_directories(sdl2 INTERFACE ${sdl2_DIR}/include/SDL2 ${sdl2_image_DIR}/usr/include/SDL2)
-target_link_directories(sdl2 INTERFACE ${sdl2_DIR}/lib ${sdl2_image_DIR}/usr/lib)
-endif()
-
-target_link_libraries(sdl2 INTERFACE SDL2 SDL2main)
+find_package(SDL2 REQUIRED)
 
 add_library(imgui STATIC)
 
@@ -57,6 +46,6 @@ target_sources(imgui PRIVATE
     imgui/imgui_impl_sdl.cpp
     )
 
-target_link_libraries(imgui PUBLIC Vulkan::Vulkan sdl2)
+target_link_libraries(imgui PUBLIC Vulkan::Vulkan ${SDL2_LIBRARIES})
 
 target_include_directories(stb_image INTERFACE stb_image)
