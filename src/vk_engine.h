@@ -168,6 +168,8 @@ private:
 
     size_t pad_uniform_buffer_size(size_t originalSize);
 
+    void with_buffer(AllocatedBuffer &buffer, std::function<void(void *)> function);
+
     void defer_delete(std::function<void()>&& function) {
         _mainDeletionQueue.push(
             std::forward<std::function<void()>>(function));

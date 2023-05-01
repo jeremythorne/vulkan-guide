@@ -843,12 +843,10 @@ void VulkanEngine::upload_mesh(Mesh& mesh) {
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VMA_MEMORY_USAGE_CPU_TO_GPU);
 
-    void *data;
-    vmaMapMemory(_allocator, mesh._vertexBuffer._allocation, &data);
-    memcpy(data, mesh._vertices.data(),
-        mesh._vertices.size() * sizeof(Vertex));
-    vmaFlushAllocation(_allocator, mesh._vertexBuffer._allocation, 0, VK_WHOLE_SIZE);
-    vmaUnmapMemory(_allocator, mesh._vertexBuffer._allocation);
+    with_buffer(mesh._vertexBuffer, [&](void *data) {
+        memcpy(data, mesh._vertices.data(),
+            mesh._vertices.size() * sizeof(Vertex));
+    });
 }
 
 Material*
@@ -894,12 +892,9 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first,
         .viewproj = projection * view
     };
 
-    void *data;
-    vmaMapMemory(_allocator, get_current_frame()._cameraBuffer._allocation,
-        &data);
-    memcpy(data, &camData, sizeof(GPUCameraData));
-    vmaFlushAllocation(_allocator, get_current_frame()._cameraBuffer._allocation, 0, VK_WHOLE_SIZE);
-    vmaUnmapMemory(_allocator, get_current_frame()._cameraBuffer._allocation);
+    with_buffer(get_current_frame()._cameraBuffer, [&](void *data) {
+        memcpy(data, &camData, sizeof(GPUCameraData));
+    });
 
     _sceneParameters.ambientColor = { 
             0.2f + 0.2f * sin(framed), 0., 
@@ -907,24 +902,19 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first,
     
     int frameIndex = _frameNumber % FRAME_OVERLAP;
 
-    unsigned char *sceneData;
-    vmaMapMemory(_allocator, _sceneParameterBuffer._allocation,
-        (void **)&sceneData);
-    sceneData += pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameIndex;
-    memcpy(sceneData, &_sceneParameters, sizeof(GPUSceneData));
-    vmaFlushAllocation(_allocator, _sceneParameterBuffer._allocation, 0, VK_WHOLE_SIZE);
-    vmaUnmapMemory(_allocator, _sceneParameterBuffer._allocation);
-
-    unsigned char *objectData;
-    vmaMapMemory(_allocator, get_current_frame()._objectBuffer._allocation,
-        (void **)&objectData);
-    GPUObjectData *objectSSBO = (GPUObjectData *)objectData;
-    for (int i = 0; i < count; i++) {
-        RenderObject &object = first[i];
-        objectSSBO[i].modelMatrix = object.transformMatrix;
-    }
-    vmaUnmapMemory(_allocator, get_current_frame()._objectBuffer._allocation);
-
+    with_buffer(_sceneParameterBuffer, [&](void *data) {
+        auto sceneData = (unsigned char *)data;
+        sceneData += pad_uniform_buffer_size(sizeof(GPUSceneData)) *
+                        frameIndex;
+        memcpy(sceneData, &_sceneParameters, sizeof(GPUSceneData));
+    });
+    with_buffer(get_current_frame()._objectBuffer, [&](void *data) {
+        GPUObjectData *objectSSBO = (GPUObjectData *)data;
+        for (int i = 0; i < count; i++) {
+            RenderObject &object = first[i];
+            objectSSBO[i].modelMatrix = object.transformMatrix;
+        }
+    });
 
     Mesh* lastMesh = nullptr;
     Material* lastMaterial = nullptr;
@@ -1001,12 +991,21 @@ FrameData& VulkanEngine::get_current_frame() {
 }
 
 size_t VulkanEngine::pad_uniform_buffer_size(size_t originalSize) {
-        size_t minUboAlignment =
-            _gpuProperties.limits.minUniformBufferOffsetAlignment;
-        size_t alignedSize = originalSize;
-        if (minUboAlignment > 0) {
-            alignedSize = (alignedSize + minUboAlignment + 1) &
-                ~(minUboAlignment - 1);
-        }
-        return alignedSize;
+    size_t minUboAlignment =
+        _gpuProperties.limits.minUniformBufferOffsetAlignment;
+    size_t alignedSize = originalSize;
+    if (minUboAlignment > 0) {
+        alignedSize = (alignedSize + minUboAlignment + 1) &
+            ~(minUboAlignment - 1);
     }
+    return alignedSize;
+}
+
+void VulkanEngine::with_buffer(AllocatedBuffer &buffer, 
+        std::function<void(void *)> function) {
+    void *data;
+    vmaMapMemory(_allocator, buffer._allocation, &data);
+    function(data);
+    vmaFlushAllocation(_allocator, buffer._allocation, 0, VK_WHOLE_SIZE);
+    vmaUnmapMemory(_allocator, buffer._allocation);
+}
