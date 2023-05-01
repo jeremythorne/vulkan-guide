@@ -49,6 +49,7 @@ void VulkanEngine::init()
     init_descriptors();
     init_pipelines();
     load_meshes();
+    load_images();
     init_scene();
 
 	//everything went fine
@@ -1064,4 +1065,22 @@ void VulkanEngine::immediate_submit(
         999999999);
     vkResetFences(_device, 1, &_uploadContext._uploadFence);
     vkResetCommandPool(_device, _uploadContext._commandPool, 0);
+}
+
+void VulkanEngine::load_images() {
+    Texture lostEmpire;
+
+    vkutil::load_image_from_file(*this, "assets/lost_empire-RGBA.png",
+        lostEmpire._image);
+
+    VkImageViewCreateInfo imageInfo = vkinit::imageview_create_info(
+        VK_FORMAT_R8G8B8A8_SRGB, lostEmpire._image._image,
+        VK_IMAGE_ASPECT_COLOR_BIT);
+    vkCreateImageView(_device, &imageInfo, nullptr, &lostEmpire._imageView);
+
+    defer_delete([=]() {
+        vkDestroyImageView(_device, lostEmpire._imageView, nullptr);
+    });
+
+    _loadedTextures["empire_diffuse"] = lostEmpire;
 }

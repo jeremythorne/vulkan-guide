@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include "vk_types.h"
 #include "vk_mesh.h"
+#include "vk_textures.h"
 #include <functional>
 #include <string>
 #include <unordered_map>
@@ -24,6 +25,11 @@ struct DeletionQueue {
         }
         deletors.clear();
     }
+};
+
+struct Texture {
+    AllocatedImage _image;
+    VkImageView _imageView;
 };
 
 struct MeshPushConstants {
@@ -95,6 +101,22 @@ public:
 	//run main loop
 	void run();
 
+    //create, upload, delete utils
+    AllocatedBuffer create_buffer(size_t allocSize,
+        VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+
+    void with_buffer(AllocatedBuffer &buffer,
+        std::function<void(void *)> function);
+
+    void immediate_submit(
+        std::function<void(VkCommandBuffer cmd)>&& function);
+
+    void defer_delete(std::function<void()>&& function) {
+        _mainDeletionQueue.push(
+            std::forward<std::function<void()>>(function));
+    }
+
+    VmaAllocator _allocator;
 private:
 	bool _isInitialized{ false };
 	int _frameNumber {0};
@@ -128,8 +150,9 @@ private:
     std::vector<VkFramebuffer> _framebuffers;
 
     std::vector<RenderObject> _renderables;
-    std::unordered_map<std::string,Material> _materials;
-    std::unordered_map<std::string,Mesh> _meshes;
+    std::unordered_map<std::string, Material> _materials;
+    std::unordered_map<std::string, Mesh> _meshes;
+    std::unordered_map<std::string, Texture> _loadedTextures;
 
     VkImageView _depthImageView;
     AllocatedImage _depthImage;
@@ -144,7 +167,6 @@ private:
     GPUSceneData _sceneParameters;
     AllocatedBuffer _sceneParameterBuffer;
 
-    VmaAllocator _allocator;
 
     void init_vulkan();
     void init_swapchain();
@@ -157,11 +179,9 @@ private:
     void init_pipelines();
     void load_meshes();
     void upload_mesh(Mesh& mesh);
+    void load_images();
     void init_scene();
     void init_descriptors();
-
-    AllocatedBuffer create_buffer(size_t allocSize,
-        VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
     Material* create_material(VkPipeline pipeline, VkPipelineLayout layout,
         const std::string& name);
@@ -175,16 +195,6 @@ private:
     FrameData& get_current_frame();
 
     size_t pad_uniform_buffer_size(size_t originalSize);
-
-    void with_buffer(AllocatedBuffer &buffer, std::function<void(void *)> function);
-
-    void immediate_submit(
-        std::function<void(VkCommandBuffer cmd)>&& function);
-
-    void defer_delete(std::function<void()>&& function) {
-        _mainDeletionQueue.push(
-            std::forward<std::function<void()>>(function));
-    }
 };
 
 class PipelineBuilder {
