@@ -89,12 +89,9 @@ void VulkanEngine::draw()
     VK_CHECK(vkResetCommandBuffer(get_current_frame()._mainCommandBuffer, 0));
     auto cmd = get_current_frame()._mainCommandBuffer;
 
-    VkCommandBufferBeginInfo cmdBeginInfo{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext = nullptr,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        .pInheritanceInfo = nullptr,
-    };
+    VkCommandBufferBeginInfo cmdBeginInfo = 
+        vkinit::command_buffer_begin_info(
+            VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
@@ -123,17 +120,12 @@ void VulkanEngine::draw()
     VkPipelineStageFlags waitStage =
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    VkSubmitInfo submit{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext = nullptr,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &get_current_frame()._presentSemaphore,
-        .pWaitDstStageMask = &waitStage,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmd,
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &get_current_frame()._renderSemaphore,
-   };
+    VkSubmitInfo submit = vkinit::submit_info(&cmd);
+    submit.waitSemaphoreCount = 1;
+    submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
+    submit.pWaitDstStageMask = &waitStage;
+    submit.signalSemaphoreCount = 1;
+    submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
 
     VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit,
         get_current_frame()._renderFence));
@@ -316,6 +308,24 @@ void VulkanEngine::init_commands() {
             vkDestroyCommandPool(_device, _frames[i]._commandPool, nullptr);
         });
     }
+
+    VkCommandPoolCreateInfo uploadCommandPoolInfo = 
+        vkinit::command_pool_create_info(_graphicsQueueFamily);
+
+    VK_CHECK(vkCreateCommandPool(_device, &uploadCommandPoolInfo, nullptr,
+        &_uploadContext._commandPool));
+
+    VkCommandBufferAllocateInfo cmdAllocInfo =
+        vkinit::command_buffer_allocate_info(
+            _uploadContext._commandPool, 1);
+
+    VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo,
+        &_uploadContext._commandBuffer));
+
+    defer_delete([=]() {
+        vkDestroyCommandPool(_device, _uploadContext._commandPool, nullptr);
+    });
+ 
 }
 
 void VulkanEngine::init_default_renderpass() {
@@ -454,6 +464,13 @@ void VulkanEngine::init_sync_structures() {
             vkDestroySemaphore(_device, _frames[i]._renderSemaphore, nullptr); 
         });
     }
+
+    VkFenceCreateInfo uploadFenceCreateInfo = vkinit::fence_create_info();
+    VK_CHECK(vkCreateFence(_device, &uploadFenceCreateInfo, nullptr,
+        &_uploadContext._uploadFence));
+    defer_delete([=]() {
+        vkDestroyFence(_device, _uploadContext._uploadFence, nullptr);
+    });
 }
 
 void VulkanEngine::init_descriptors() {
@@ -838,14 +855,31 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize,
 }
 
 void VulkanEngine::upload_mesh(Mesh& mesh) {
-    mesh._vertexBuffer = create_buffer(
-        mesh._vertices.size() * sizeof(Vertex),
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VMA_MEMORY_USAGE_CPU_TO_GPU);
+    const size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
 
-    with_buffer(mesh._vertexBuffer, [&](void *data) {
+    AllocatedBuffer stagingBuffer = create_buffer(
+        bufferSize,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_MEMORY_USAGE_CPU_ONLY);
+
+    with_buffer(stagingBuffer, [&](void *data) {
         memcpy(data, mesh._vertices.data(),
-            mesh._vertices.size() * sizeof(Vertex));
+            bufferSize);
+    });
+
+    mesh._vertexBuffer = create_buffer(
+        bufferSize,
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
+
+    immediate_submit([=](VkCommandBuffer cmd) {
+        VkBufferCopy copy = {
+            .srcOffset = 0,
+            .dstOffset = 0,
+            .size = bufferSize
+        };
+        vkCmdCopyBuffer(cmd, stagingBuffer._buffer,
+            mesh._vertexBuffer._buffer, 1, &copy);
     });
 }
 
@@ -1008,4 +1042,26 @@ void VulkanEngine::with_buffer(AllocatedBuffer &buffer,
     function(data);
     vmaFlushAllocation(_allocator, buffer._allocation, 0, VK_WHOLE_SIZE);
     vmaUnmapMemory(_allocator, buffer._allocation);
+}
+
+void VulkanEngine::immediate_submit(
+        std::function<void(VkCommandBuffer cmd)>&& function) {
+    VkCommandBuffer cmd = _uploadContext._commandBuffer;
+    VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(
+        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+    function(cmd);
+
+    VK_CHECK(vkEndCommandBuffer(cmd));
+
+    VkSubmitInfo submit = vkinit::submit_info(&cmd);
+    VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit,
+        _uploadContext._uploadFence));
+
+    vkWaitForFences(_device, 1, &_uploadContext._uploadFence, true,
+        999999999);
+    vkResetFences(_device, 1, &_uploadContext._uploadFence);
+    vkResetCommandPool(_device, _uploadContext._commandPool, 0);
 }

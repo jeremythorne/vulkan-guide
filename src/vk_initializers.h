@@ -16,7 +16,7 @@ namespace vkinit {
         uint32_t count = 1,
         VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
-    VkFenceCreateInfo fence_create_info(VkFenceCreateFlags flags);
+    VkFenceCreateInfo fence_create_info(VkFenceCreateFlags flags = 0);
     VkSemaphoreCreateInfo semaphore_create_info(VkSemaphoreCreateFlags flags);
 
     VkPipelineShaderStageCreateInfo pipeline_shader_stage_create_info(
@@ -51,4 +51,8 @@ namespace vkinit {
         VkDescriptorType type, VkDescriptorSet dstSet, 
         VkDescriptorBufferInfo *bufferInfo, uint32_t binding);
   
+
+    VkCommandBufferBeginInfo command_buffer_begin_info(
+        VkCommandBufferUsageFlags flags = 0);
+    VkSubmitInfo submit_info(VkCommandBuffer* cmd);
 }

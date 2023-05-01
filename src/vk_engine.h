@@ -35,6 +35,12 @@ struct Material {
     VkPipelineLayout pipelineLayout;
 };
 
+struct UploadContext {
+    VkFence _uploadFence;
+    VkCommandPool _commandPool;
+    VkCommandBuffer _commandBuffer;
+};
+
 struct RenderObject {
     Mesh *mesh;
     Material *material;
@@ -116,6 +122,8 @@ private:
 
     FrameData _frames[FRAME_OVERLAP];
 
+    UploadContext _uploadContext;
+
     VkRenderPass _renderPass;
     std::vector<VkFramebuffer> _framebuffers;
 
@@ -169,6 +177,9 @@ private:
     size_t pad_uniform_buffer_size(size_t originalSize);
 
     void with_buffer(AllocatedBuffer &buffer, std::function<void(void *)> function);
+
+    void immediate_submit(
+        std::function<void(VkCommandBuffer cmd)>&& function);
 
     void defer_delete(std::function<void()>&& function) {
         _mainDeletionQueue.push(
